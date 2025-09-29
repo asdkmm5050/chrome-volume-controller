@@ -3,8 +3,8 @@
   "name": "Volume Controller",
   "version": "1.0.0",
   "description": "Control webpage volume from 0% to 500% with an easy-to-use popup slider. Works on all websites including YouTube, Netflix, Spotify and more.",
-  "author": "Your Name",
-  "homepage_url": "https://github.com/yourusername/chrome-extension-volume-controller",
+  "author": "Chrome Extension Developer",
+  "homepage_url": "https://github.com/asdkmm5050/chrome-volume-controller",
   "permissions": [
     "activeTab", 
     "storage"

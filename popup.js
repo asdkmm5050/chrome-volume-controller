@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   let currentTabId = null;
   let currentTabUrl = null;
+  let volumeChangeTimer = null;
 
   // Get current tab
   chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
@@ -40,11 +41,22 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // Safe hostname extraction from URL
+  function getHostnameFromUrl(url) {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.hostname || 'unknown';
+    } catch (error) {
+      console.warn('Invalid URL:', url);
+      return 'unknown';
+    }
+  }
+
   // Load volume from storage (fallback)
   function loadSavedVolumeFromStorage() {
-    const hostname = new URL(currentTabUrl).hostname;
+    const hostname = getHostnameFromUrl(currentTabUrl);
     const storageKey = `volume_url_${hostname}`;
-    
+
     chrome.storage.local.get([storageKey], function(result) {
       if (chrome.runtime.lastError) {
         console.error('Failed to load volume:', chrome.runtime.lastError);
@@ -65,10 +77,28 @@ document.addEventListener('DOMContentLoaded', function() {
     volumeSlider.style.setProperty('--slider-progress', `${percentage}%`);
   }
 
-  // Send volume change to content script
-  function sendVolumeChange(volume) {
+  // Send volume change to content script (debounced for performance)
+  function sendVolumeChange(volume, immediate = false) {
     if (!currentTabId) return;
 
+    updateVolumeDisplay(volume);
+
+    if (immediate) {
+      // Send immediately for button clicks
+      performVolumeChange(volume);
+    } else {
+      // Debounce for slider movements
+      if (volumeChangeTimer) {
+        clearTimeout(volumeChangeTimer);
+      }
+      volumeChangeTimer = setTimeout(() => {
+        performVolumeChange(volume);
+      }, 50); // 50ms debounce
+    }
+  }
+
+  // Actual volume change implementation
+  function performVolumeChange(volume) {
     chrome.tabs.sendMessage(currentTabId, {
       action: 'setVolume',
       volume: volume / 100
@@ -79,9 +109,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Save volume for current tab (by hostname)
     if (currentTabUrl) {
-      const hostname = new URL(currentTabUrl).hostname;
+      const hostname = getHostnameFromUrl(currentTabUrl);
       const storageKey = `volume_url_${hostname}`;
-      
+
       chrome.storage.local.set({
         [storageKey]: volume
       }, function() {
@@ -90,8 +120,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
     }
-
-    updateVolumeDisplay(volume);
   }
 
   // Validate and constrain volume value
@@ -117,18 +145,19 @@ document.addEventListener('DOMContentLoaded', function() {
   // Volume input blur event (when user clicks away)
   volumeInput.addEventListener('blur', function() {
     const inputValue = this.value.trim();
-    
+    const numValue = parseInt(inputValue);
+
     // Check if input is valid
-    if (inputValue === '' || isNaN(inputValue) || inputValue < 0 || inputValue > 500) {
+    if (inputValue === '' || isNaN(numValue) || numValue < 0 || numValue > 500) {
       // Invalid input - restore original value
       this.value = originalValue;
       return;
     }
-    
-    const volume = parseInt(inputValue);
+
+    const volume = numValue;
     this.value = volume; // Clean up the display
     volumeSlider.value = volume;
-    sendVolumeChange(volume);
+    sendVolumeChange(volume, true); // immediate = true for manual input
   });
 
   // Volume input keypress event (Enter key)
@@ -160,7 +189,7 @@ document.addEventListener('DOMContentLoaded', function() {
     button.addEventListener('click', function() {
       const volume = parseInt(this.dataset.volume);
       volumeSlider.value = volume;
-      sendVolumeChange(volume);
+      sendVolumeChange(volume, true); // immediate = true for buttons
     });
   });
 

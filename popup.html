@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * {
       margin: 0;
@@ -195,19 +196,29 @@
   <div class="popup-container">
     <div class="volume-header">
       <span class="volume-title">Volume</span>
-      <input type="number" class="volume-input" id="volumeInput" 
-             min="0" max="500" value="100">
+      <input type="number" class="volume-input" id="volumeInput"
+             min="0" max="500" value="100"
+             aria-label="Volume percentage (0-500%)"
+             title="Enter volume percentage from 0% to 500%">
     </div>
     
     <div class="volume-slider-container">
-      <input type="range" class="volume-slider" id="volumeSlider" 
-             min="0" max="500" value="100" step="1">
+      <input type="range" class="volume-slider" id="volumeSlider"
+             min="0" max="500" value="100" step="1"
+             aria-label="Volume slider (0-500%)"
+             title="Drag to adjust volume from 0% to 500%">
     </div>
     
     <div class="volume-controls">
-      <button class="control-button" data-volume="0">Mute</button>
-      <button class="control-button" data-volume="100">100%</button>
-      <button class="control-button" data-volume="500">Max</button>
+      <button class="control-button" data-volume="0"
+              aria-label="Mute volume"
+              title="Set volume to 0%">Mute</button>
+      <button class="control-button" data-volume="100"
+              aria-label="Set volume to 100%"
+              title="Set volume to normal level (100%)">100%</button>
+      <button class="control-button" data-volume="500"
+              aria-label="Set volume to maximum"
+              title="Set volume to maximum level (500%)">Max</button>
     </div>
   </div>
 
