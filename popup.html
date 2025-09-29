@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 280px;
+      height: 160px;
+      overflow: hidden;
+      background: var(--bg-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .popup-container {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      height: 100%;
+    }
+
+    .volume-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .volume-title {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-color);
+    }
+
+    .volume-input {
+      font-size: 14px;
+      color: var(--text-color);
+      font-weight: 600;
+      min-width: 60px;
+      width: 60px;
+      text-align: right;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      padding: 2px 4px;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .volume-input:hover {
+      border-color: var(--input-border-hover);
+    }
+
+    .volume-input:focus {
+      border-color: var(--input-border-focus);
+      background: var(--input-bg-focus);
+    }
+
+    .volume-input:invalid {
+      border-color: var(--input-border-error);
+    }
+
+    .volume-slider-container {
+      margin: 4px 0;
+    }
+
+    .volume-slider {
+      width: 100%;
+      height: 20px;
+      background: var(--slider-track);
+      border-radius: 10px;
+      outline: none;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .volume-slider::-webkit-slider-track {
+      height: 6px;
+      background: var(--slider-track);
+      border-radius: 3px;
+      border: none;
+    }
+
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      background: var(--slider-thumb);
+      cursor: pointer;
+      border: none;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      transition: box-shadow 0.2s ease;
+    }
+
+    .volume-slider::-webkit-slider-thumb:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .volume-slider::-moz-range-track {
+      height: 6px;
+      background: var(--slider-track);
+      border: none;
+      border-radius: 3px;
+    }
+
+    .volume-slider::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      background: var(--slider-thumb);
+      cursor: pointer;
+      border: none;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    .volume-controls {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .control-button {
+      background: var(--button-bg);
+      border: 1px solid var(--button-border);
+      color: var(--button-text);
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      flex: 1;
+      text-align: center;
+      border-radius: 20px;
+      transition: all 0.15s ease;
+    }
+
+    .control-button:hover {
+      background: var(--button-hover);
+      border-color: var(--button-border-hover);
+    }
+
+    .control-button:active {
+      background: var(--button-active);
+      transform: translateY(1px);
+    }
+
+    /* Light theme */
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #333333;
+      --slider-track: #cccccc;
+      --slider-thumb: #444444;
+      --button-bg: #f8f9fa;
+      --button-text: #333333;
+      --button-border: #d0d7de;
+      --button-hover: #f3f4f6;
+      --button-border-hover: #a8a8a8;
+      --button-active: #e5e7eb;
+      --input-border-hover: #cccccc;
+      --input-border-focus: #666666;
+      --input-bg-focus: #f8f9fa;
+      --input-border-error: #dc3545;
+    }
+
+    /* Dark theme */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-color: #1e1e1e;
+        --text-color: #ffffff;
+        --slider-track: #555555;
+        --slider-thumb: #e0e0e0;
+        --button-bg: #2d2d30;
+        --button-text: #ffffff;
+        --button-border: #484848;
+        --button-hover: #37373a;
+        --button-border-hover: #6a6a6a;
+        --button-active: #25252a;
+        --input-border-hover: #666666;
+        --input-border-focus: #888888;
+        --input-bg-focus: #2d2d30;
+        --input-border-error: #dc3545;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="popup-container">
+    <div class="volume-header">
+      <span class="volume-title">Volume</span>
+      <input type="number" class="volume-input" id="volumeInput" 
+             min="0" max="500" value="100">
+    </div>
+    
+    <div class="volume-slider-container">
+      <input type="range" class="volume-slider" id="volumeSlider" 
+             min="0" max="500" value="100" step="1">
+    </div>
+    
+    <div class="volume-controls">
+      <button class="control-button" data-volume="0">Mute</button>
+      <button class="control-button" data-volume="100">100%</button>
+      <button class="control-button" data-volume="500">Max</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
