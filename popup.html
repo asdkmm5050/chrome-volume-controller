@@ -12,18 +12,17 @@
 
     html, body {
       width: 280px;
-      height: 160px;
       overflow: hidden;
       background: var(--bg-color);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
 
     .popup-container {
-      padding: 20px;
+      padding: 4.3%;
       display: flex;
       flex-direction: column;
-      gap: 16px;
-      height: 100%;
+      gap: 12px;
+      height: auto;
     }
 
     .volume-header {
@@ -41,7 +40,7 @@
     .volume-input-group {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 12px;
     }
 
     .volume-step-button {
@@ -107,7 +106,7 @@
     }
 
     .volume-slider-container {
-      margin: 4px 0;
+      margin: 0;
     }
 
     .volume-slider {
@@ -165,8 +164,8 @@
     .volume-controls {
       display: flex;
       justify-content: space-between;
-      gap: 8px;
-      margin-top: 8px;
+      gap: 12px;
+      margin-top: 0;
     }
 
     .control-button {
@@ -193,6 +192,45 @@
       transform: translateY(1px);
     }
 
+    .disable-section {
+      margin-top: 0;
+    }
+
+    .disable-button {
+      width: 100%;
+      background: var(--button-bg);
+      border: 1px solid var(--button-border);
+      color: var(--text-color);
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: center;
+      border-radius: 20px;
+      transition: all 0.15s ease;
+    }
+
+    .disable-button:hover {
+      background: var(--button-hover);
+      border-color: var(--button-border-hover);
+    }
+
+    .disable-button:active {
+      background: var(--button-active);
+      transform: translateY(1px);
+    }
+
+    .disable-button.disabled-state {
+      background: var(--disabled-bg);
+      border-color: var(--disabled-border);
+      color: var(--disabled-text);
+    }
+
+    .disable-button.disabled-state:hover {
+      background: var(--disabled-hover);
+      border-color: var(--disabled-border-hover);
+    }
+
     /* Light theme */
     :root {
       --bg-color: #ffffff;
@@ -209,6 +247,12 @@
       --input-border-focus: #666666;
       --input-bg-focus: #f8f9fa;
       --input-border-error: #dc3545;
+      --border-color: #e5e7eb;
+      --disabled-bg: #fef2f2;
+      --disabled-border: #fca5a5;
+      --disabled-text: #dc2626;
+      --disabled-hover: #fee2e2;
+      --disabled-border-hover: #f87171;
     }
 
     /* Dark theme */
@@ -228,6 +272,12 @@
         --input-border-focus: #888888;
         --input-bg-focus: #2d2d30;
         --input-border-error: #dc3545;
+        --border-color: #484848;
+        --disabled-bg: #3f1f1f;
+        --disabled-border: #dc2626;
+        --disabled-text: #fca5a5;
+        --disabled-hover: #4f2626;
+        --disabled-border-hover: #ef4444;
       }
     }
   </style>
@@ -267,6 +317,14 @@
       <button class="control-button" data-volume="500"
               aria-label="Set volume to maximum"
               title="Set volume to maximum level (500%)">Max</button>
+    </div>
+
+    <div class="disable-section">
+      <button class="disable-button" id="toggleDisable"
+              aria-label="Disable on this website"
+              title="Disable volume controller on this website">
+        <span class="disable-text">Disable on this site</span>
+      </button>
     </div>
   </div>
 

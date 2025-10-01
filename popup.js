@@ -4,16 +4,19 @@ document.addEventListener('DOMContentLoaded', function() {
   const volumeDecrease = document.getElementById('volumeDecrease');
   const volumeIncrease = document.getElementById('volumeIncrease');
   const controlButtons = document.querySelectorAll('.control-button');
+  const toggleDisableButton = document.getElementById('toggleDisable');
 
   let currentTabId = null;
   let currentTabUrl = null;
   let volumeChangeTimer = null;
+  let isDisabled = false;
 
   // Get current tab
   chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
     if (tabs && tabs[0]) {
       currentTabId = tabs[0].id;
       currentTabUrl = tabs[0].url;
+      loadDisabledState();
       loadSavedVolume();
     } else {
       console.error('No active tab found');
@@ -70,13 +73,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Update volume display and slider progress
+  // Update volume display
   function updateVolumeDisplay(volume) {
     volumeInput.value = volume;
-    
-    // Update slider track fill using CSS custom property
-    const percentage = (volume / 500) * 100;
-    volumeSlider.style.setProperty('--slider-progress', `${percentage}%`);
   }
 
   // Send volume change to content script with different behaviors
@@ -320,4 +319,90 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Initialize with current slider value
   updateVolumeDisplay(parseInt(volumeSlider.value));
+
+  // Load disabled state for current website
+  function loadDisabledState() {
+    if (!currentTabUrl) return;
+
+    const hostname = getHostnameFromUrl(currentTabUrl);
+    const storageKey = `disabled_${hostname}`;
+
+    chrome.storage.local.get([storageKey], function(result) {
+      if (chrome.runtime.lastError) {
+        console.error('Failed to load disabled state:', chrome.runtime.lastError);
+        return;
+      }
+
+      isDisabled = result[storageKey] || false;
+      updateDisableButton();
+      updateControlsState();
+    });
+  }
+
+  // Update disable button UI
+  function updateDisableButton() {
+    const disableText = toggleDisableButton.querySelector('.disable-text');
+
+    if (isDisabled) {
+      toggleDisableButton.classList.add('disabled-state');
+      disableText.textContent = 'Enable on this site';
+      toggleDisableButton.setAttribute('title', 'Enable volume controller on this website');
+      toggleDisableButton.setAttribute('aria-label', 'Enable on this website');
+    } else {
+      toggleDisableButton.classList.remove('disabled-state');
+      disableText.textContent = 'Disable on this site';
+      toggleDisableButton.setAttribute('title', 'Disable volume controller on this website');
+      toggleDisableButton.setAttribute('aria-label', 'Disable on this website');
+    }
+  }
+
+  // Update controls state (enable/disable based on disabled state)
+  function updateControlsState() {
+    const controls = [volumeSlider, volumeInput, volumeDecrease, volumeIncrease, ...controlButtons];
+
+    controls.forEach(control => {
+      control.disabled = isDisabled;
+      if (isDisabled) {
+        control.style.opacity = '0.5';
+        control.style.pointerEvents = 'none';
+      } else {
+        control.style.opacity = '1';
+        control.style.pointerEvents = 'auto';
+      }
+    });
+  }
+
+  // Toggle disable state
+  toggleDisableButton.addEventListener('click', function() {
+    if (!currentTabUrl) return;
+
+    isDisabled = !isDisabled;
+
+    const hostname = getHostnameFromUrl(currentTabUrl);
+    const storageKey = `disabled_${hostname}`;
+
+    // Save disabled state
+    chrome.storage.local.set({
+      [storageKey]: isDisabled
+    }, function() {
+      if (chrome.runtime.lastError) {
+        console.error('Failed to save disabled state:', chrome.runtime.lastError);
+        return;
+      }
+
+      updateDisableButton();
+      updateControlsState();
+
+      // Notify content script about the state change
+      chrome.tabs.sendMessage(currentTabId, {
+        action: 'setDisabled',
+        disabled: isDisabled
+      }).catch(error => {
+        console.log('Content script not ready:', error);
+      });
+
+      // Reload the page to apply changes
+      chrome.tabs.reload(currentTabId);
+    });
+  });
 });

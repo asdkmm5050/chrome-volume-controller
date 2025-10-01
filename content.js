@@ -12,6 +12,31 @@
   let lastMediaQuery = 0;
   let mediaQueryThrottleTime = 500; // Throttle media element queries to 500ms
   let initializationAttempted = false;
+  let isExtensionDisabled = false;
+
+  // Check if extension is disabled for this website
+  function checkDisabledState() {
+    const hostname = getHostnameFromLocation();
+    const storageKey = `disabled_${hostname}`;
+
+    chrome.storage.local.get([storageKey], function(result) {
+      if (chrome.runtime.lastError) {
+        console.log('Failed to check disabled state:', chrome.runtime.lastError);
+        return;
+      }
+
+      isExtensionDisabled = result[storageKey] || false;
+
+      if (isExtensionDisabled) {
+        console.log('Volume Controller is disabled on this website');
+        // Don't initialize if disabled
+        return;
+      }
+
+      // Initialize if not disabled
+      initializeExtension();
+    });
+  }
 
   // Initialize audio context and gain node
   function initializeAudioContext() {
@@ -233,20 +258,33 @@
   // Message listener
   chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (request.action === 'setVolume') {
+      if (isExtensionDisabled) {
+        sendResponse({success: false, error: 'Extension is disabled on this website'});
+        return true;
+      }
       const volume = Math.max(0, Math.min(5.0, request.volume)); // Clamp between 0 and 5.0 (500%)
       console.log('Setting page volume to:', volume);
       setPageVolume(volume);
       sendResponse({success: true, volume: volume});
       return true; // Keep the message channel open for async response
     } else if (request.action === 'getVolume') {
+      if (isExtensionDisabled) {
+        sendResponse({success: false, error: 'Extension is disabled on this website'});
+        return true;
+      }
       console.log('Getting current volume:', currentVolume);
       sendResponse({success: true, volume: currentVolume});
+      return true;
+    } else if (request.action === 'setDisabled') {
+      isExtensionDisabled = request.disabled;
+      console.log('Extension disabled state changed to:', isExtensionDisabled);
+      sendResponse({success: true, disabled: isExtensionDisabled});
       return true;
     }
   });
 
-  // Initialize everything when page loads
-  function initialize() {
+  // Initialize everything when page loads (renamed to avoid confusion)
+  function initializeExtension() {
     console.log('Initializing Volume Controller with Web Audio API');
 
     // Initialize Audio Context first
@@ -266,6 +304,12 @@
     } else {
       console.warn('Volume controller initialization failed - AudioContext not supported');
     }
+  }
+
+  // Main initialization entry point
+  function initialize() {
+    // Check if extension is disabled for this website first
+    checkDisabledState();
   }
 
   // Safe hostname extraction
@@ -347,7 +391,7 @@
   } else {
     initialize();
   }
-  
+
   // Cleanup on page unload
   window.addEventListener('beforeunload', cleanup);
   window.addEventListener('pagehide', cleanup);
