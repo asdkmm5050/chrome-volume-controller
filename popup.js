@@ -77,24 +77,57 @@ document.addEventListener('DOMContentLoaded', function() {
     volumeSlider.style.setProperty('--slider-progress', `${percentage}%`);
   }
 
-  // Send volume change to content script (debounced for performance)
-  function sendVolumeChange(volume, immediate = false) {
+  // Send volume change to content script with different behaviors
+  function sendVolumeChange(volume, mode = 'debounced') {
+    if (!currentTabId) return;
+
+    // Always update display immediately for visual feedback
+    updateVolumeDisplay(volume);
+
+    switch (mode) {
+      case 'immediate':
+        // For button clicks - apply immediately
+        if (volumeChangeTimer) {
+          clearTimeout(volumeChangeTimer);
+          volumeChangeTimer = null;
+        }
+        performVolumeChange(volume);
+        break;
+
+      case 'debounced':
+        // For slider movements - debounced for performance
+        if (volumeChangeTimer) {
+          clearTimeout(volumeChangeTimer);
+        }
+        volumeChangeTimer = setTimeout(() => {
+          performVolumeChange(volume);
+          volumeChangeTimer = null;
+        }, 50); // 50ms debounce
+        break;
+
+      case 'deferred':
+        // For keyboard input - don't apply until editing is finished
+        // Only update display, don't send to content script
+        break;
+
+      default:
+        console.warn('Unknown volume change mode:', mode);
+    }
+  }
+
+  // Apply volume change immediately (for input field when editing is done)
+  function applyVolumeChange(volume) {
     if (!currentTabId) return;
 
     updateVolumeDisplay(volume);
 
-    if (immediate) {
-      // Send immediately for button clicks
-      performVolumeChange(volume);
-    } else {
-      // Debounce for slider movements
-      if (volumeChangeTimer) {
-        clearTimeout(volumeChangeTimer);
-      }
-      volumeChangeTimer = setTimeout(() => {
-        performVolumeChange(volume);
-      }, 50); // 50ms debounce
+    // Cancel any pending debounced changes
+    if (volumeChangeTimer) {
+      clearTimeout(volumeChangeTimer);
+      volumeChangeTimer = null;
     }
+
+    performVolumeChange(volume);
   }
 
   // Actual volume change implementation
@@ -129,21 +162,40 @@ document.addEventListener('DOMContentLoaded', function() {
     return Math.max(0, Math.min(500, num));
   }
 
-  // Slider change event
+  // Slider change event - immediate application with slight debounce for performance
   volumeSlider.addEventListener('input', function() {
     const volume = parseInt(this.value);
-    sendVolumeChange(volume);
+    sendVolumeChange(volume, 'debounced'); // Use debounced for smooth slider dragging
   });
 
   // Store original value when input starts
   let originalValue = volumeInput.value;
+  let isInputFocused = false;
 
   volumeInput.addEventListener('focus', function() {
     originalValue = this.value;
+    isInputFocused = true;
   });
 
-  // Volume input blur event (when user clicks away)
+  // Volume input change during typing (for display feedback only)
+  volumeInput.addEventListener('input', function() {
+    if (!isInputFocused) return;
+
+    const inputValue = this.value.trim();
+    const numValue = parseInt(inputValue);
+
+    // Only update display if value is valid, don't apply to audio
+    if (inputValue !== '' && !isNaN(numValue) && numValue >= 0 && numValue <= 500) {
+      // Update slider position for visual feedback
+      volumeSlider.value = numValue;
+      // Use deferred mode - only visual update, no audio change
+      sendVolumeChange(numValue, 'deferred');
+    }
+  });
+
+  // Volume input blur event (when user clicks away - apply changes)
   volumeInput.addEventListener('blur', function() {
+    isInputFocused = false;
     const inputValue = this.value.trim();
     const numValue = parseInt(inputValue);
 
@@ -151,19 +203,23 @@ document.addEventListener('DOMContentLoaded', function() {
     if (inputValue === '' || isNaN(numValue) || numValue < 0 || numValue > 500) {
       // Invalid input - restore original value
       this.value = originalValue;
+      volumeSlider.value = originalValue;
+      sendVolumeChange(parseInt(originalValue), 'deferred'); // Restore display
       return;
     }
 
     const volume = numValue;
     this.value = volume; // Clean up the display
     volumeSlider.value = volume;
-    sendVolumeChange(volume, true); // immediate = true for manual input
+
+    // Apply the volume change now that editing is finished
+    applyVolumeChange(volume);
   });
 
-  // Volume input keypress event (Enter key)
+  // Volume input keypress event (Enter key - apply changes)
   volumeInput.addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
-      this.blur(); // Trigger blur event for validation
+      this.blur(); // Trigger blur event for validation and application
     }
   });
 
@@ -184,12 +240,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // Control button events
+  // Control button events - immediate application
   controlButtons.forEach(button => {
     button.addEventListener('click', function() {
       const volume = parseInt(this.dataset.volume);
       volumeSlider.value = volume;
-      sendVolumeChange(volume, true); // immediate = true for buttons
+
+      // If input is currently focused, update it and blur to apply changes
+      if (isInputFocused) {
+        volumeInput.value = volume;
+        volumeInput.blur();
+      } else {
+        // Apply immediately for button clicks
+        sendVolumeChange(volume, 'immediate');
+      }
     });
   });
 

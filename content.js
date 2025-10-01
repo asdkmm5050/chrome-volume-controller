@@ -6,25 +6,34 @@
   let audioContext = null;
   let gainNode = null;
   let mediaElements = [];
-  let originalVolumes = new WeakMap();
+  let connectedElements = new WeakSet(); // Track connected elements
   let mutationObserver = null;
   let isCleanedUp = false;
   let lastMediaQuery = 0;
   let mediaQueryThrottleTime = 500; // Throttle media element queries to 500ms
+  let initializationAttempted = false;
 
   // Initialize audio context and gain node
   function initializeAudioContext() {
+    if (initializationAttempted) return audioContext !== null;
+    initializationAttempted = true;
+
     try {
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
       gainNode = audioContext.createGain();
       gainNode.connect(audioContext.destination);
-      
+      gainNode.gain.value = currentVolume;
+
       // AudioContext starts in suspended state due to autoplay policy
       if (audioContext.state === 'suspended') {
         console.log('AudioContext created but suspended - waiting for user interaction');
+      } else {
+        console.log('AudioContext initialized successfully');
       }
+      return true;
     } catch (error) {
-      console.warn('AudioContext not supported, falling back to direct volume control');
+      console.warn('AudioContext not supported:', error);
+      return false;
     }
   }
 
@@ -42,36 +51,53 @@
     // Add new elements to the collection
     mediaElements.push(...newElements);
 
-    // Store original volumes for new elements
+    // Connect new elements to Web Audio API immediately
     newElements.forEach(element => {
-      if (!originalVolumes.has(element)) {
-        originalVolumes.set(element, element.volume);
-      }
+      connectElementToWebAudio(element);
     });
   }
 
-  // Apply volume to all media elements
-  function applyVolumeToMediaElements(volume) {
-    // Remove disconnected elements
-    mediaElements = mediaElements.filter(element => element.isConnected);
-    
-    // Find any new elements
-    findMediaElements();
-    
-    mediaElements.forEach(element => {
-      if (element.isConnected && !element.dataset.volumeControllerConnected) {
-        // Only control elements not connected to Web Audio API
-        const originalVolume = originalVolumes.get(element) || 1.0;
-        element.volume = originalVolume * Math.min(volume, 1.0); // Cap at 100% for direct control
+  // Connect a single media element to Web Audio API
+  function connectElementToWebAudio(element) {
+    if (!audioContext || !gainNode || connectedElements.has(element)) {
+      return false;
+    }
+
+    try {
+      // Check if element already has an audio source to prevent DOMException
+      if (element.audioSourceNode) {
+        console.log('Media element already connected to Web Audio API');
+        return true;
       }
-    });
+
+      // Set element volume to 100% since Web Audio API will control the overall volume
+      element.volume = 1.0;
+
+      const source = audioContext.createMediaElementSource(element);
+      source.connect(gainNode);
+
+      // Store reference to prevent duplicate connections
+      element.audioSourceNode = source;
+      connectedElements.add(element);
+      element.dataset.volumeControllerConnected = 'true';
+
+      console.log('Connected media element to Web Audio API');
+      return true;
+    } catch (error) {
+      console.warn('Failed to connect media element to Web Audio API:', error);
+      return false;
+    }
   }
 
   // Apply volume using Web Audio API
   function applyVolumeWithWebAudio(volume) {
-    if (!audioContext || !gainNode) return false;
+    if (!audioContext || !gainNode) {
+      console.warn('AudioContext not available for volume control');
+      return false;
+    }
 
     try {
+      // Smoothly transition to new volume
       gainNode.gain.setTargetAtTime(volume, audioContext.currentTime, 0.1);
       return true;
     } catch (error) {
@@ -80,58 +106,57 @@
     }
   }
 
-  // Set volume for the page
+  // Set volume for the page (Web Audio API only)
   function setPageVolume(volume) {
     currentVolume = volume;
-    
-    // First, try to connect media elements to Web Audio API for >100% volume
-    if (volume > 1.0) {
-      connectMediaElementsToWebAudio();
+
+    // Ensure AudioContext is initialized
+    if (!audioContext) {
+      initializeAudioContext();
     }
-    
-    // Apply volume using Web Audio API if available
-    const webAudioSuccess = applyVolumeWithWebAudio(volume);
-    
-    // Apply to media elements not connected to Web Audio API
-    applyVolumeToMediaElements(volume);
-    
-    // Warn if >100% volume requested but Web Audio API not available
-    if (volume > 1.0 && !webAudioSuccess && mediaElements.length > 0) {
-      console.warn('Volume above 100% requires user interaction to enable Web Audio API');
+
+    // Resume AudioContext if suspended
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume().then(() => {
+        console.log('AudioContext resumed');
+        applyVolumeWithWebAudio(volume);
+      }).catch(error => {
+        console.warn('Failed to resume AudioContext:', error);
+      });
+    } else {
+      applyVolumeWithWebAudio(volume);
     }
+
+    // Find and connect any new media elements
+    findMediaElements();
+    connectAllMediaElements();
   }
 
-  // Connect existing media elements to Web Audio API
-  async function connectMediaElementsToWebAudio() {
-    if (!audioContext || !gainNode) return;
+  // Connect all existing media elements to Web Audio API
+  async function connectAllMediaElements() {
+    if (!audioContext || !gainNode) {
+      console.log('AudioContext not ready for connecting elements');
+      return;
+    }
 
     // Resume AudioContext if suspended before connecting elements
     if (audioContext.state === 'suspended') {
       try {
         await audioContext.resume();
-        console.log('AudioContext resumed');
+        console.log('AudioContext resumed before connecting elements');
       } catch (error) {
         console.warn('Failed to resume AudioContext:', error);
         return;
       }
     }
 
+    // Clean up disconnected elements
+    mediaElements = mediaElements.filter(element => element.isConnected);
+
+    // Connect all elements that aren't already connected
     mediaElements.forEach(element => {
-      try {
-        if (!element.dataset.volumeControllerConnected && !element.audioSource) {
-          const source = audioContext.createMediaElementSource(element);
-          source.connect(gainNode);
-          element.dataset.volumeControllerConnected = 'true';
-          element.audioSource = source; // Track the source to prevent duplicates
-
-          // Reset element volume to maximum since Web Audio API will control it
-          const originalVolume = originalVolumes.get(element) || 1.0;
-          element.volume = originalVolume;
-
-          console.log('Connected media element to Web Audio API');
-        }
-      } catch (error) {
-        console.warn('Failed to connect media element to Web Audio API:', error);
+      if (element.isConnected && !connectedElements.has(element)) {
+        connectElementToWebAudio(element);
       }
     });
   }
@@ -153,35 +178,13 @@
       processingQueue = [];
 
       mediaToProcess.forEach(media => {
-        if (!originalVolumes.has(media)) {
-          originalVolumes.set(media, media.volume);
-        }
-
         // Add to tracking array if not already there
         if (!mediaElements.includes(media)) {
           mediaElements.push(media);
         }
 
-        // Apply current volume
-        if (currentVolume > 1.0) {
-          // Try to connect to Web Audio API for >100% volume
-          if (audioContext && gainNode && !media.dataset.volumeControllerConnected && !media.audioSource) {
-            try {
-              const source = audioContext.createMediaElementSource(media);
-              source.connect(gainNode);
-              media.dataset.volumeControllerConnected = 'true';
-              media.audioSource = source; // Track the source to prevent duplicates
-              media.volume = originalVolumes.get(media) || 1.0;
-            } catch (error) {
-              // Fallback to direct volume control
-              media.volume = (originalVolumes.get(media) || 1.0) * Math.min(currentVolume, 1.0);
-            }
-          }
-        } else {
-          // Direct volume control for ≤100%
-          const originalVolume = originalVolumes.get(media) || 1.0;
-          media.volume = originalVolume * currentVolume;
-        }
+        // Connect to Web Audio API immediately
+        connectElementToWebAudio(media);
       });
     }
 
@@ -244,15 +247,25 @@
 
   // Initialize everything when page loads
   function initialize() {
-    initializeAudioContext();
-    findMediaElements();
-    connectMediaElementsToWebAudio();
-    setupMediaObserver();
-    
-    // Load saved volume from storage using URL as key
-    loadSavedVolume();
-    
-    console.log('Volume controller initialized');
+    console.log('Initializing Volume Controller with Web Audio API');
+
+    // Initialize Audio Context first
+    const audioInitialized = initializeAudioContext();
+
+    if (audioInitialized) {
+      // Find existing media elements
+      findMediaElements();
+
+      // Set up observer for new elements
+      setupMediaObserver();
+
+      // Load saved volume from storage
+      loadSavedVolume();
+
+      console.log('Volume controller initialized successfully');
+    } else {
+      console.warn('Volume controller initialization failed - AudioContext not supported');
+    }
   }
 
   // Safe hostname extraction
@@ -289,13 +302,15 @@
   function cleanup() {
     if (isCleanedUp) return;
     isCleanedUp = true;
-    
+
+    console.log('Cleaning up Volume Controller');
+
     // Disconnect mutation observer
     if (mutationObserver) {
       mutationObserver.disconnect();
       mutationObserver = null;
     }
-    
+
     // Close audio context
     if (audioContext && audioContext.state !== 'closed') {
       audioContext.close().then(() => {
@@ -304,22 +319,26 @@
         console.warn('Failed to close AudioContext:', error);
       });
     }
-    
-    // Reset media elements to original volumes and cleanup references
+
+    // Reset media elements and cleanup references
     mediaElements.forEach(element => {
-      const originalVolume = originalVolumes.get(element);
-      if (originalVolume !== undefined) {
-        element.volume = originalVolume;
-      }
+      // Reset volume to 100% (since we set it to 1.0 when connecting to Web Audio API)
+      element.volume = 1.0;
+
       // Clear audio source reference
-      if (element.audioSource) {
-        delete element.audioSource;
+      if (element.audioSourceNode) {
+        delete element.audioSourceNode;
       }
+
       // Clear connection flag
       if (element.dataset.volumeControllerConnected) {
         delete element.dataset.volumeControllerConnected;
       }
     });
+
+    // Clear tracking collections
+    mediaElements = [];
+    connectedElements = new WeakSet();
   }
   
   // Start initialization
@@ -339,10 +358,10 @@
       try {
         await audioContext.resume();
         console.log('AudioContext resumed after user interaction');
-        // Re-apply current volume if >100%
-        if (currentVolume > 1.0) {
-          applyVolumeWithWebAudio(currentVolume);
-        }
+
+        // Re-apply current volume and connect any pending elements
+        applyVolumeWithWebAudio(currentVolume);
+        connectAllMediaElements();
       } catch (error) {
         console.warn('Failed to resume AudioContext:', error);
       }
