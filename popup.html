@@ -38,19 +38,59 @@
       color: var(--text-color);
     }
 
+    .volume-input-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .volume-step-button {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 1px solid var(--button-border);
+      background: var(--button-bg);
+      color: var(--text-color);
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .volume-step-button:hover {
+      background: var(--button-hover);
+      border-color: var(--button-border-hover);
+    }
+
+    .volume-step-button:active {
+      background: var(--button-active);
+      transform: scale(0.95);
+    }
+
     .volume-input {
       font-size: 14px;
       color: var(--text-color);
       font-weight: 600;
       min-width: 60px;
       width: 60px;
-      text-align: right;
+      text-align: center;
       background: transparent;
       border: 1px solid transparent;
       border-radius: 4px;
       padding: 2px 4px;
       outline: none;
       transition: border-color 0.2s ease;
+      -moz-appearance: textfield;
+    }
+
+    .volume-input::-webkit-outer-spin-button,
+    .volume-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
     }
 
     .volume-input:hover {
@@ -196,10 +236,18 @@
   <div class="popup-container">
     <div class="volume-header">
       <span class="volume-title">Volume</span>
-      <input type="number" class="volume-input" id="volumeInput"
-             min="0" max="500" value="100"
-             aria-label="Volume percentage (0-500%)"
-             title="Enter volume percentage from 0% to 500%">
+      <div class="volume-input-group">
+        <button class="volume-step-button" id="volumeDecrease"
+                aria-label="Decrease volume"
+                title="Decrease volume by 1%">−</button>
+        <input type="number" class="volume-input" id="volumeInput"
+               min="0" max="500" value="100"
+               aria-label="Volume percentage (0-500%)"
+               title="Enter volume percentage from 0% to 500%">
+        <button class="volume-step-button" id="volumeIncrease"
+                aria-label="Increase volume"
+                title="Increase volume by 1%">+</button>
+      </div>
     </div>
     
     <div class="volume-slider-container">

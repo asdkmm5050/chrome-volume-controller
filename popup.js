@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', function() {
   const volumeSlider = document.getElementById('volumeSlider');
   const volumeInput = document.getElementById('volumeInput');
+  const volumeDecrease = document.getElementById('volumeDecrease');
+  const volumeIncrease = document.getElementById('volumeIncrease');
   const controlButtons = document.querySelectorAll('.control-button');
 
   let currentTabId = null;
@@ -256,6 +258,65 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   });
+
+  // Volume increase/decrease button events with long press support
+  let holdTimer = null;
+  let holdInterval = null;
+  let isHolding = false;
+
+  function changeVolume(delta) {
+    const currentVolume = parseInt(volumeInput.value);
+    const validVolume = isNaN(currentVolume) ? 100 : currentVolume;
+    const newVolume = Math.max(0, Math.min(500, validVolume + delta));
+    volumeSlider.value = newVolume;
+    volumeInput.value = newVolume;
+    sendVolumeChange(newVolume, 'immediate');
+  }
+
+  function startHold(delta) {
+    isHolding = false;
+    // Initial change on mousedown
+    changeVolume(delta);
+
+    // Start holding after 500ms
+    holdTimer = setTimeout(() => {
+      isHolding = true;
+      // Repeat every 100ms while holding
+      holdInterval = setInterval(() => {
+        changeVolume(delta);
+      }, 100);
+    }, 500);
+  }
+
+  function stopHold() {
+    if (holdTimer) {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+    if (holdInterval) {
+      clearInterval(holdInterval);
+      holdInterval = null;
+    }
+    isHolding = false;
+  }
+
+  // Increase button
+  volumeIncrease.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    startHold(1);
+  });
+
+  volumeIncrease.addEventListener('mouseup', stopHold);
+  volumeIncrease.addEventListener('mouseleave', stopHold);
+
+  // Decrease button
+  volumeDecrease.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    startHold(-1);
+  });
+
+  volumeDecrease.addEventListener('mouseup', stopHold);
+  volumeDecrease.addEventListener('mouseleave', stopHold);
 
   // Initialize with current slider value
   updateVolumeDisplay(parseInt(volumeSlider.value));
